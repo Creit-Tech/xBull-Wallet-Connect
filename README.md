@@ -1,1 +1,1 @@
-# xbull-wallet-connect
+# xBull Wallet Connect
