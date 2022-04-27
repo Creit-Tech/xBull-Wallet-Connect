@@ -8,7 +8,7 @@ export enum EventType {
 }
 
 export interface ISDKConstructor {
-  url: string;
+  url?: string;
   preferredTarget?: 'extension' | 'website'; // Default is extension
 }
 

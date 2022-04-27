@@ -2,7 +2,7 @@ import { xBullConnect } from '../src';
 
 window.onload = function() {
   console.log('test html loaded')
-  const connection = new xBullConnect({ url: 'http://localhost:4200/connect' });
+  const connection = new xBullConnect({ url: 'http://localhost:4200/connect', preferredTarget: 'website' });
 
   const publicKeyInput = document.querySelector('#publicKey');
   if (!publicKeyInput) {
@@ -30,5 +30,11 @@ window.onload = function() {
 
     const signedXdr = await connection.sign({ xdr });
     console.log(signedXdr);
-  })
+  });
+
+  document.querySelector('#closeButton')?.addEventListener('click', async () => {
+    console.log('Close button clicked');
+
+    connection.closeConnections();
+  });
 }

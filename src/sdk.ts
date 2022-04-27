@@ -8,10 +8,11 @@ import {
   InitialResponseListenerData, IRejectResponse, IRejectResult,
   ISDKConstructor, ISignParams, ISignRequestData, ISignResponseData, ISignResult
 } from './interfaces';
-import { firstValueFrom, of, Subject, Subscription, switchMap, take, takeUntil, throwError, timer } from 'rxjs';
+import { firstValueFrom, merge, of, Subject, Subscription, switchMap, take, takeUntil, throwError, timer } from 'rxjs';
 
 export class xBullConnect {
   closeCurrentPromises$: Subject<void> = new Subject<void>();
+  closeObservables$: Subject<void> = new Subject<void>();
 
   preferredTarget: Required<ISDKConstructor['preferredTarget']>;
 
@@ -91,6 +92,7 @@ export class xBullConnect {
   }
 
   closeCurrentPromisesSubscription: Subscription = timer(1000, 1000)
+    .pipe(takeUntil(this.closeObservables$))
     .subscribe(() => {
       if (this.target?.closed) {
         this.closeCurrentPromises$.next();
@@ -98,6 +100,7 @@ export class xBullConnect {
     })
 
   onInititalResponseSubscription: Subscription = this.initialResponse$
+    .pipe(takeUntil(this.closeObservables$))
     .subscribe((ev: MessageEvent<InitialResponseListenerData>) => {
       const decryptedMessage = this.decryptFromReceiver({
         oneTimeCode: ev.data.oneTimeCode,
@@ -114,6 +117,7 @@ export class xBullConnect {
     });
 
   onConnectResponseSubscription: Subscription = this.connectResponse$
+    .pipe(takeUntil(this.closeObservables$))
     .subscribe((ev: MessageEvent<IConnectResponseData | IRejectResponse>) => {
       if (!this.targetPublicKey) {
         this.connectResult$.next({ success: false, message: 'Wallet encryption public key is not provided, request rejected.' })
@@ -137,6 +141,7 @@ export class xBullConnect {
     });
 
   onSignResponseSubscription: Subscription = this.signResponse$
+    .pipe(takeUntil(this.closeObservables$))
     .subscribe((ev: MessageEvent<ISignResponseData | IRejectResponse>) => {
       if (!this.targetPublicKey) {
         this.signResult$.next({ success: false, message: 'Wallet encryption public key is not provided, request rejected.' })
@@ -174,7 +179,7 @@ export class xBullConnect {
 
     return firstValueFrom(
       this.initialResponseCompleted$
-        .pipe(takeUntil(this.closeCurrentPromises$))
+        .pipe(takeUntil(this.closeCurrentPromises$ && this.closeObservables$))
     );
   }
 
@@ -225,7 +230,7 @@ export class xBullConnect {
           }
         }))
         .pipe(take(1))
-        .pipe(takeUntil(this.closeCurrentPromises$));
+        .pipe(takeUntil(this.closeCurrentPromises$ && this.closeObservables$));
 
       return firstValueFrom(result);
 
@@ -273,9 +278,16 @@ export class xBullConnect {
           }
         }))
         .pipe(take(1))
-        .pipe(takeUntil(this.closeCurrentPromises$));
+        .pipe(takeUntil(this.closeCurrentPromises$ && this.closeObservables$));
 
       return firstValueFrom(result);
     }
+  }
+
+  closeConnections() {
+    this.closeObservables$.next();
+    this.closeCurrentPromises$.next();
+    this.closeObservables$.complete();
+    this.closeCurrentPromises$.complete();
   }
 }
