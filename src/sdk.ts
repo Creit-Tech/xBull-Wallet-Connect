@@ -13,6 +13,8 @@ import { firstValueFrom, of, Subject, Subscription, switchMap, take, takeUntil, 
 export class xBullConnect {
   closeCurrentPromises$: Subject<void> = new Subject<void>();
 
+  preferredTarget: Required<ISDKConstructor['preferredTarget']>;
+
   target?: Window | null;
   targetPublicKey?: string; // this value is encrypted
   readonly walletUrl: string;
@@ -32,6 +34,7 @@ export class xBullConnect {
   signResult$: Subject<ISignResult | IRejectResult> = new Subject<ISignResult | IRejectResult>();
 
   constructor(params?: ISDKConstructor) {
+    this.preferredTarget = params?.preferredTarget || 'extension';
     this.walletUrl = params?.url || 'https://wallet.xbull.app/connect';
     const sessionKeypair = box.keyPair();
     const session = encodeBase64(randomBytes(24));
@@ -182,81 +185,97 @@ export class xBullConnect {
     }
   }
 
-  async connect(params: IConnectParams): Promise<string> {
-    await this.openWallet();
+  async connect(params: IConnectParams = { canRequestPublicKey: true, canRequestSign: true }): Promise<string> {
+    const extensionSdk = (window as any).xBullSDK;
+    if (!!extensionSdk && this.preferredTarget === 'extension') {
 
-    if (!this.target || !this.targetPublicKey) {
-      throw new Error(`xBull Wallet is not open, we can't connect with it`);
+      await extensionSdk.connect(params);
+      return extensionSdk.getPublicKey();
+
+    } else {
+
+      await this.openWallet();
+
+      if (!this.target || !this.targetPublicKey) {
+        throw new Error(`xBull Wallet is not open, we can't connect with it`);
+      }
+
+      const { message, oneTimeCode } = this.encryptForReceiver({
+        data: JSON.stringify(params),
+        receiverPublicKey: decodeBase64(this.targetPublicKey),
+      })
+
+      const payload: IConnectRequestData = {
+        type: EventType.XBULL_CONNECT,
+        message,
+        oneTimeCode,
+      };
+
+      this.target.postMessage(payload, '*');
+
+      const result = this.connectResult$
+        .asObservable()
+        .pipe(switchMap(result => {
+          if (!result.success) {
+            this.closeWallet();
+            return throwError(() => new Error(result.message));
+          } else {
+            this.closeWallet();
+            return of(result.publicKey);
+          }
+        }))
+        .pipe(take(1))
+        .pipe(takeUntil(this.closeCurrentPromises$));
+
+      return firstValueFrom(result);
+
     }
-
-    const { message, oneTimeCode } = this.encryptForReceiver({
-      data: JSON.stringify(params),
-      receiverPublicKey: decodeBase64(this.targetPublicKey),
-    })
-
-    const payload: IConnectRequestData = {
-      type: EventType.XBULL_CONNECT,
-      message,
-      oneTimeCode,
-    };
-
-    this.target.postMessage(payload, '*');
-
-    const result = this.connectResult$
-      .asObservable()
-      .pipe(switchMap(result => {
-        if (!result.success) {
-          this.closeWallet();
-          return throwError(() => new Error(result.message));
-        } else {
-          this.closeWallet();
-          return of(result.publicKey);
-        }
-      }))
-      .pipe(take(1))
-      .pipe(takeUntil(this.closeCurrentPromises$));
-
-    return firstValueFrom(result);
   }
 
   async sign(params: ISignParams) {
-    await this.openWallet();
+    const extensionSdk = (window as any).xBullSDK;
+    if (!!extensionSdk && this.preferredTarget === 'extension') {
+      const { xdr, ...rest } = params;
+      return extensionSdk.signXDR(xdr, rest);
+    } else {
+      await this.openWallet();
 
-    if (!this.target || !this.targetPublicKey) {
-      throw new Error(`xBull Wallet is not open, we can't connect with it`);
+      if (!this.target || !this.targetPublicKey) {
+        throw new Error(`xBull Wallet is not open, we can't connect with it`);
+      }
+
+      if (typeof params.xdr !== 'string') {
+        throw new Error('XDR provided needs to be a string value');
+      }
+
+      const { message, oneTimeCode } = this.encryptForReceiver({
+        data: JSON.stringify(params),
+        receiverPublicKey: decodeBase64(this.targetPublicKey),
+      });
+
+      const payload: ISignRequestData = {
+        type: EventType.XBULL_SIGN,
+        message,
+        oneTimeCode,
+      };
+
+      this.target.postMessage(payload, '*');
+
+      const result = this.signResult$
+        .asObservable()
+        .pipe(switchMap(result => {
+          if (!result.success) {
+            this.closeWallet();
+            return throwError(() => new Error(result.message));
+          } else {
+            this.closeWallet();
+            return of(result.xdr);
+          }
+        }))
+        .pipe(take(1))
+        .pipe(takeUntil(this.closeCurrentPromises$));
+
+      return firstValueFrom(result);
     }
-
-    if (typeof params.xdr !== 'string') {
-      throw new Error('XDR provided needs to be a string value');
-    }
-
-    const { message, oneTimeCode } = this.encryptForReceiver({
-      data: JSON.stringify(params),
-      receiverPublicKey: decodeBase64(this.targetPublicKey),
-    });
-
-    const payload: ISignRequestData = {
-      type: EventType.XBULL_SIGN,
-      message,
-      oneTimeCode,
-    };
-
-    this.target.postMessage(payload, '*');
-
-    const result = this.signResult$
-      .asObservable()
-      .pipe(switchMap(result => {
-        if (!result.success) {
-          this.closeWallet();
-          return throwError(() => new Error(result.message));
-        } else {
-          this.closeWallet();
-          return of(result.xdr);
-        }
-      }))
-      .pipe(take(1))
-      .pipe(takeUntil(this.closeCurrentPromises$));
-
-    return firstValueFrom(result);
   }
 }

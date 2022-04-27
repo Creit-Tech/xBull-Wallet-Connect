@@ -9,6 +9,7 @@ export enum EventType {
 
 export interface ISDKConstructor {
   url: string;
+  preferredTarget?: 'extension' | 'website'; // Default is extension
 }
 
 export interface IConnectParams {
