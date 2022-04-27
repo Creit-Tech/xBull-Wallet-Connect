@@ -10,7 +10,7 @@ window.onload = function() {
   }
 
   document.querySelector('#actionButton')?.addEventListener('click', async () => {
-    console.log('test button clicked')
+    console.log('Connect button clicked')
     const pk = await connection.connect({
       canRequestPublicKey: true,
       canRequestSign: true,
@@ -18,4 +18,17 @@ window.onload = function() {
 
     publicKeyInput.setAttribute('value', pk);
   });
+
+  document.querySelector('#signButton')?.addEventListener('click', async () => {
+    console.log('Sign button clicked')
+
+    const xdr = (document.querySelector('#xdrToSign') as HTMLInputElement)?.value
+
+    if (!xdr) {
+      return;
+    }
+
+    const signedXdr = await connection.sign({ xdr });
+    console.log(signedXdr);
+  })
 }

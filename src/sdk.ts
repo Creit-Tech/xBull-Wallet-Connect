@@ -1,14 +1,14 @@
-import { box, randomBytes, secretbox } from 'tweetnacl';
+import { box, randomBytes } from 'tweetnacl';
 import { decodeBase64, decodeUTF8, encodeBase64, encodeUTF8 } from 'tweetnacl-util';
 import {
   EventType,
   IConnectParams,
   IConnectRequestData,
-  IConnectResponseData,
-  InitialResponseListenerData, IRejectResponse,
-  ISDKConstructor
+  IConnectResponseData, IConnectResult,
+  InitialResponseListenerData, IRejectResponse, IRejectResult,
+  ISDKConstructor, ISignParams, ISignRequestData, ISignResponseData, ISignResult
 } from './interfaces';
-import { firstValueFrom, map, of, Subject, Subscription, switchMap, take, takeUntil, throwError, timer } from 'rxjs';
+import { firstValueFrom, of, Subject, Subscription, switchMap, take, takeUntil, throwError, timer } from 'rxjs';
 
 export class xBullConnect {
   closeCurrentPromises$: Subject<void> = new Subject<void>();
@@ -26,7 +26,10 @@ export class xBullConnect {
   initialResponseCompleted$: Subject<void> = new Subject<void>();
 
   connectResponse$: Subject<MessageEvent<IConnectResponseData | IRejectResponse>> = new Subject<MessageEvent<IConnectResponseData | IRejectResponse>>();
-  connectResult$: Subject<{ success: false, message?: string } | { success: true, publicKey: string }> = new Subject<{ success: false, message?: string } | { success: true, publicKey: string }>(); // the value is the public key returned from the wallet
+  connectResult$: Subject<IConnectResult | IRejectResult> = new Subject<IConnectResult | IRejectResult>(); // the value is the public key returned from the wallet
+
+  signResponse$: Subject<MessageEvent<ISignResponseData | IRejectResponse>> = new Subject<MessageEvent<ISignResponseData | IRejectResponse>>();
+  signResult$: Subject<ISignResult | IRejectResult> = new Subject<ISignResult | IRejectResult>();
 
   constructor(params?: ISDKConstructor) {
     this.walletUrl = params?.url || 'https://wallet.xbull.app/connect';
@@ -76,6 +79,10 @@ export class xBullConnect {
         case EventType.XBULL_CONNECT_RESPONSE:
           this.connectResponse$.next(ev);
           break;
+
+        case EventType.XBULL_SIGN_RESPONSE:
+          this.signResponse$.next(ev);
+          break;
       }
     });
   }
@@ -124,6 +131,29 @@ export class xBullConnect {
       const data: { publicKey: string } = JSON.parse(decryptedMessage);
 
       this.connectResult$.next({ success: true, publicKey: data.publicKey });
+    });
+
+  onSignResponseSubscription: Subscription = this.signResponse$
+    .subscribe((ev: MessageEvent<ISignResponseData | IRejectResponse>) => {
+      if (!this.targetPublicKey) {
+        this.signResult$.next({ success: false, message: 'Wallet encryption public key is not provided, request rejected.' })
+        return;
+      }
+
+      if (!ev.data.success) {
+        this.signResult$.next({ success: false, message: 'Request rejected from the wallet' });
+        return;
+      }
+
+      const decryptedMessage = this.decryptFromReceiver({
+        oneTimeCode: ev.data.oneTimeCode,
+        payload: ev.data.message,
+        senderPublicKey: this.targetPublicKey,
+      });
+
+      const data: { xdr: string } = JSON.parse(decryptedMessage);
+
+      this.signResult$.next({ success: true, xdr: data.xdr });
     });
 
   openWallet() {
@@ -183,6 +213,48 @@ export class xBullConnect {
           return of(result.publicKey);
         }
       }))
+      .pipe(take(1))
+      .pipe(takeUntil(this.closeCurrentPromises$));
+
+    return firstValueFrom(result);
+  }
+
+  async sign(params: ISignParams) {
+    await this.openWallet();
+
+    if (!this.target || !this.targetPublicKey) {
+      throw new Error(`xBull Wallet is not open, we can't connect with it`);
+    }
+
+    if (typeof params.xdr !== 'string') {
+      throw new Error('XDR provided needs to be a string value');
+    }
+
+    const { message, oneTimeCode } = this.encryptForReceiver({
+      data: JSON.stringify(params),
+      receiverPublicKey: decodeBase64(this.targetPublicKey),
+    });
+
+    const payload: ISignRequestData = {
+      type: EventType.XBULL_SIGN,
+      message,
+      oneTimeCode,
+    };
+
+    this.target.postMessage(payload, '*');
+
+    const result = this.signResult$
+      .asObservable()
+      .pipe(switchMap(result => {
+        if (!result.success) {
+          this.closeWallet();
+          return throwError(() => new Error(result.message));
+        } else {
+          this.closeWallet();
+          return of(result.xdr);
+        }
+      }))
+      .pipe(take(1))
       .pipe(takeUntil(this.closeCurrentPromises$));
 
     return firstValueFrom(result);

@@ -10,13 +10,22 @@
 <body>
 
     <button style="display: block; margin-bottom: 16px" id="actionButton">
-     Connect account
+        Get public key
     </button>
 
-    <label style="display: block">
+    <label style="display: block; margin-bottom: 16px">
         Public Key:
         <input style="width: 510px" id="publicKey" type="text" placeholder="Public key">
     </label>
+
+    <label style="display: block; margin-bottom: 16px">
+        XDR to sign:
+        <input style="width: 510px" id="xdrToSign" placeholder="XDR to sign">
+    </label>
+
+    <button style="display: block; margin-bottom: 16px;" id="signButton">
+        Sign XDR
+    </button>
 
 </body>
 </html>
