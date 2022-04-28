@@ -1,8 +1,8 @@
-import { xBullConnect } from '../src';
+import { xBullWalletConnect } from '../src';
 
 window.onload = function() {
   console.log('test html loaded')
-  const connection = new xBullConnect({ url: 'http://localhost:4200/connect', preferredTarget: 'website' });
+  const connection = new xBullWalletConnect({ url: 'https://wallet.xbull.app/connect', preferredTarget: 'website' });
 
   const publicKeyInput = document.querySelector('#publicKey');
   if (!publicKeyInput) {
@@ -10,7 +10,7 @@ window.onload = function() {
   }
 
   document.querySelector('#actionButton')?.addEventListener('click', async () => {
-    console.log('Connect button clicked')
+    console.log('Connect button clicked');
     const pk = await connection.connect({
       canRequestPublicKey: true,
       canRequestSign: true,

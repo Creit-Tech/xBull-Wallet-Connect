@@ -1,5 +1,5 @@
 import { box, randomBytes } from 'tweetnacl';
-import { xBullConnect } from './sdk';
+import xBullWalletConnect from '../src';
 import { decodeBase64, decodeUTF8, encodeBase64, encodeUTF8 } from 'tweetnacl-util';
 
 describe('SDK Specs', () => {
@@ -7,7 +7,7 @@ describe('SDK Specs', () => {
   describe('encryptForReceiver', () => {
     test('should return a payload that can be decrypted by the recipient private key', () => {
       const receiverKeypair = box.keyPair();
-      const connection = new xBullConnect();
+      const connection = new xBullWalletConnect();
       const sessionPublicKey = connection.publicKey();
       const messageToSend = 'This is a test message';
       const { message, oneTimeCode } = connection.encryptForReceiver({
@@ -34,7 +34,7 @@ describe('SDK Specs', () => {
 
     test('Should decrypt the message sent from the receiver', () => {
       const senderKeypair = box.keyPair();
-      const connection = new xBullConnect();
+      const connection = new xBullWalletConnect();
       const sessionPublicKey = connection.publicKey();
       const messageToSend = 'This is a test message';
 
