@@ -84,7 +84,7 @@ export class xBullWalletConnect {
 
     this.session = () => session.slice();
 
-    window.addEventListener('message', (ev) => {
+    const listener = (ev: any) => {
       switch (ev.data.type as EventType) {
         case EventType.XBULL_INITIAL_RESPONSE:
           this.initialResponse$.next(ev);
@@ -98,7 +98,15 @@ export class xBullWalletConnect {
           this.signResponse$.next(ev);
           break;
       }
-    });
+    };
+
+    window.addEventListener('message', listener);
+
+    this.closeObservables$.asObservable()
+      .pipe(take(1))
+      .subscribe(() => {
+        window.removeEventListener('message', listener);
+      });
   }
 
   closeCurrentPromisesSubscription: Subscription = timer(1000, 1000)

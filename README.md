@@ -1,6 +1,6 @@
 # xBull Wallet Connect
 
-This library allows you to connect your site with xBull Wallet in a quick and easy way, this includes both extension and website versions.
+This library allows you to connect your site with xBull Wallet in a quick and easy way, this library connects with both extension and website versions.
 
 ## Installation
 
@@ -8,7 +8,65 @@ This library allows you to connect your site with xBull Wallet in a quick and ea
 npm i --save github:Creit-Tech/xBull-Wallet-Connect
 ```
 
-Or by using the 
+Install the latest version available in our repo, we use Github instead of NPM because this way you can check the code before intalling it which in our view is safer.
+
+> We recommend you using version tags when installing the library, this way you have control when doing an `npm i`
+
+## The xBullWalletConnect Class
+
+Yes, we know most people recommend that Classes start with capital case... First you need to create a new instance of the class by doing:
+```typescript
+const bridge = new xBullWalletConnect();
+```
+
+This will generate an object with internal events handlers and keys needed to talk with the xBull Wallet. It's better if you create a new bridge for each connection, each time the bridge is created it has a new keypair and session id, this helps in avoiding receiving messages from unwanted parties.
+
+> NOTE: Each time you create a new bridge, we set observables and events handlers for the instance so is important you close them after you have used the bridge. More about this at the end of this guide
+
+The `xBullWalletConnect` constructor accepts an **optional** object where you can specify the options for this instance:
+```typescript
+
+interface ISDKConstructor {
+  url?: string;
+  preferredTarget?: 'extension' | 'website'; // Default is extension
+}
+``` 
+
+## Connect with xBull Wallet
+```typescript
+const publicKey = await bridge.connect();
+```
+
+This method will check if the extension is available in the browser, if is not it will automatically launch the webapp version so the user can share the public key.
+
+## Sign a transaction
+```typescript
+const signedXDR = await bridge.sign({
+  xdr: "XDR_TO_SIGN"
+});
+```
+
+This method will launch the wallet and request the user to sign the transaction, after it's confirmed it will return a string which is the signed XDR. If you want you can specify which user and network should be used to sign the transaction:
+```typescript
+interface ISignParams {
+  xdr: string;
+  publicKey?: string;
+  network?: string;
+}
+```
+
+> NOTE: When specifying the account or the network, both values must be supplied.
+
+## Close the connection
+
+Once you have completed interacting with the wallet, you should close the connection by doing this:
+```typescript
+bridge.closeConnections();
+```
+
+If we don't do this the next time we create a new bridge we could have unexpected behaviour because old listener will still be in memory.
+
+
 
 ## License
 ![](https://img.shields.io/badge/License-AGPLv3-lightgrey)
