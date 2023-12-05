@@ -35,6 +35,6 @@ export declare class xBullWalletConnect {
     openWallet(): Promise<void>;
     closeWallet(): void;
     connect(params?: IConnectParams): Promise<string>;
-    sign(params: ISignParams): Promise<any>;
+    sign(params: ISignParams): Promise<string>;
     closeConnections(): void;
 }

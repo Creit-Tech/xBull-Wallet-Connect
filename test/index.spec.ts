@@ -1,5 +1,5 @@
 import { box, randomBytes } from 'tweetnacl';
-import xBullWalletConnect from '../src';
+import { xBullWalletConnect } from '../src';
 import { decodeBase64, decodeUTF8, encodeBase64, encodeUTF8 } from 'tweetnacl-util';
 
 describe('SDK Specs', () => {

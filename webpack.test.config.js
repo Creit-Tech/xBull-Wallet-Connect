@@ -4,6 +4,9 @@ const path = require('path');
 module.exports = {
   mode: 'development',
   entry: './test/index.ts',
+  devServer: {
+    allowedHosts: ['all']
+  },
   module: {
     rules: [
       {

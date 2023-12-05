@@ -2,7 +2,7 @@ import { xBullWalletConnect } from '../src';
 
 window.onload = function() {
   console.log('test html loaded')
-  const connection = new xBullWalletConnect({ url: 'https://wallet.xbull.app/connect', preferredTarget: 'website' });
+  const connection = new xBullWalletConnect();
 
   const publicKeyInput = document.querySelector('#publicKey');
   if (!publicKeyInput) {

@@ -19,6 +19,7 @@ import {
   throwError,
   timer
 } from 'rxjs';
+import { xBullSDK } from './mobile-sdk';
 
 export class xBullWalletConnect {
   closeCurrentPromises$: Subject<void> = new Subject<void>();
@@ -210,7 +211,7 @@ export class xBullWalletConnect {
   }
 
   async connect(params: IConnectParams = { canRequestPublicKey: true, canRequestSign: true }): Promise<string> {
-    const extensionSdk = (window as any).xBullSDK;
+    const extensionSdk: xBullSDK = !!(window as any)?.webkit?.messageHandlers?.cordova_iab ? new xBullSDK() : (window as any).xBullSDK;
     if (!!extensionSdk && this.preferredTarget === 'extension') {
 
       await extensionSdk.connect(params);
@@ -258,7 +259,7 @@ export class xBullWalletConnect {
   }
 
   async sign(params: ISignParams) {
-    const extensionSdk = (window as any).xBullSDK;
+    const extensionSdk: xBullSDK = !!(window as any)?.webkit?.messageHandlers?.cordova_iab ? new xBullSDK() : (window as any).xBullSDK;
     if (!!extensionSdk && this.preferredTarget === 'extension') {
       const { xdr, ...rest } = params;
       return extensionSdk.signXDR(xdr, rest);
