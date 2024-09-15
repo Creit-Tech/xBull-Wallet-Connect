@@ -1,7 +1,11 @@
-
 export enum EventType {
-  XBULL_INITIAL_RESPONSE = 'XBULL_INITIAL_RESPONSE',
   XBULL_CONNECT = 'XBULL_CONNECT',
+  XBULL_GET_PUBLIC_KEY = 'XBULL_GET_PUBLIC_KEY',
+  XBULL_SIGN_XDR = 'XBULL_SIGN_XDR',
+  XBULL_GET_NETWORK = 'XBULL_GET_NETWORK',
+
+
+  XBULL_INITIAL_RESPONSE = 'XBULL_INITIAL_RESPONSE',
   XBULL_CONNECT_RESPONSE = 'XBULL_CONNECT_RESPONSE',
   XBULL_SIGN = 'XBULL_SIGN',
   XBULL_SIGN_RESPONSE = 'XBULL_SIGN_RESPONSE',
@@ -77,3 +81,89 @@ export interface ISignResponseData extends Required<BaseResponse> {
 export interface IRejectResponse extends Pick<BaseResponse, 'type'> {
   success: false;
 }
+
+export type SdkResponse<T> = T | { error: SdkError };
+
+export function isResponseError<T>(response: SdkResponse<T>): response is { error: SdkError } {
+  return !!(response as any).error;
+}
+
+interface SdkError {
+  message: string;    // general description message returned to the client app
+  code: number;       // unique error code
+  ext?: Array<string>;  // optional extended details
+}
+
+/**
+ * @deprecated
+ */
+export interface ISitePermissions {
+  canRequestPublicKey: boolean;
+  canRequestSign: boolean;
+}
+
+export interface IConnectRequestPayload {
+  origin: string;
+  host: string;
+  permissions: ISitePermissions;
+}
+
+export interface IGetPublicKeyRequestPayload {
+  origin: string;
+  host: string;
+}
+
+export interface IGetNetworkRequestPayload {
+  origin: string;
+  host: string;
+}
+
+export interface ISignXDRRequestPayload {
+  origin: string;
+  host: string;
+  xdr: string;
+  xdrType: 'Transaction' | 'AuthEntry';
+  publicKey?: string;
+  network?: string;
+}
+// ----- SDK and Content script types END
+
+// ----- Background and Content script types
+export interface IRuntimeConnectResponse {
+  error: false;
+  payload: ISitePermissions;
+}
+
+export interface IRuntimeGetPublicKeyResponse {
+  error: false;
+  payload: string;
+}
+
+export interface IRuntimeSignXDRResponse {
+  error: false;
+  payload: {
+    signedXdr: string;
+    signerAddress: string;
+  };
+}
+
+export interface IRuntimeGetNetworkResponse {
+  error: false;
+  payload: {
+    network: string,
+    networkPassphrase: string
+  };
+}
+
+export interface IRuntimeErrorResponse {
+  error: true;
+  errorMessage: string;
+  code?: number;
+}
+
+export type RuntimeResponse = IRuntimeConnectResponse
+  | IRuntimeGetPublicKeyResponse
+  | IRuntimeSignXDRResponse
+  | IRuntimeErrorResponse
+  | IRuntimeGetNetworkResponse;
+// ----- Background and Content script types END

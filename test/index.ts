@@ -16,6 +16,8 @@ window.onload = function() {
       canRequestSign: true,
     });
 
+    console.log('Public key loaded:', pk);
+
     publicKeyInput.setAttribute('value', pk);
   });
 
@@ -29,7 +31,8 @@ window.onload = function() {
     }
 
     const signedXdr = await connection.sign({ xdr });
-    console.log(signedXdr);
+
+    console.log('XDR Signed:', signedXdr);
   });
 
   document.querySelector('#closeButton')?.addEventListener('click', async () => {

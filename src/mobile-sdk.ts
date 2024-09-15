@@ -1,76 +1,23 @@
-/**
- * This "mobile-sdk" is used when we are using this library within a inAppBrowser from xBull Signer
- */
-
-export enum EventTypes {
-  XBULL_CONNECT = 'XBULL_CONNECT',
-  XBULL_GET_PUBLIC_KEY = 'XBULL_GET_PUBLIC_KEY',
-  XBULL_SIGN_XDR = 'XBULL_SIGN_XDR',
-}
-
-// ----- SDK and Content script types
-export interface ISitePermissions {
-  canRequestPublicKey: boolean;
-  canRequestSign: boolean;
-}
-
-export interface IConnectRequestPayload {
-  origin: string;
-  host: string;
-  permissions: ISitePermissions;
-}
-
-export interface IGetPublicKeyRequestPayload {
-  origin: string;
-  host: string;
-}
-
-export interface ISignXDRRequestPayload {
-  origin: string;
-  host: string;
-  xdr: string;
-  publicKey?: string;
-  network?: string;
-}
-// ----- SDK and Content script types END
-
-export interface IRuntimeConnectResponse {
-  error: false;
-  payload: ISitePermissions;
-}
-
-export interface IRuntimeGetPublicKeyResponse {
-  error: false;
-  payload: string;
-}
-
-export interface IRuntimeSignXDRResponse {
-  error: false;
-  payload: string;
-}
-
-export enum IRuntimeErrorResponseType {
-  CONNECTION_REJECTED = 'CONNECTION_REJECTED',
-}
-
-export interface IRuntimeErrorResponse {
-  error: true;
-  errorType: IRuntimeErrorResponseType;
-  errorMessage: string;
-}
-// ----- Background and Content script types END
+import {
+  EventType,
+  IConnectRequestPayload,
+  IGetNetworkRequestPayload,
+  IGetPublicKeyRequestPayload,
+  IRuntimeConnectResponse,
+  IRuntimeErrorResponse, IRuntimeGetNetworkResponse,
+  IRuntimeGetPublicKeyResponse,
+  IRuntimeSignXDRResponse,
+  ISignXDRRequestPayload,
+  SdkResponse,
+} from './interfaces';
 
 export class xBullSDK {
   isConnected = false;
 
   constructor() {}
 
-  // ts-expect-error - any is expected
-  private sendEventToContentScript<T, R>(eventName: EventTypes, payload: T): Promise<any> {
-    return new Promise<CustomEvent<R>>(resolve => {
-      // We use this id to create a random event listener and avoid mixing messages
-      const eventId = (new Date().getTime() + Math.random()).toString(16);
-
+  private sendEventToContentScript<T, R>(eventName: EventType, payload: T, nonce: string): Promise<{ data: { detail: R; eventId: string; returnFromCS?: boolean } }> {
+    return new Promise<{ data: { detail: R; eventId: string; returnFromCS?: boolean } }>(resolve => {
       const eventListener = (event: any) => {
         if (event.source !== window || !event.data || event.origin !== window.origin) {
           return;
@@ -78,7 +25,7 @@ export class xBullSDK {
 
         const response = event.data as { detail: R; eventId: string; returnFromCS?: boolean };
 
-        if (response.eventId === eventId) {
+        if (response.eventId === nonce) {
           resolve(event);
           window.removeEventListener('message', eventListener, false);
         }
@@ -88,39 +35,54 @@ export class xBullSDK {
 
       (window as any).webkit.messageHandlers.cordova_iab.postMessage(JSON.stringify({
         type: eventName,
-        eventId,
+        eventId: nonce,
         detail: payload,
       }));
     });
   }
-  async connect(permissions: IConnectRequestPayload['permissions']): Promise<IRuntimeConnectResponse['payload']> {
-    if (!permissions || (!permissions.canRequestPublicKey && !permissions.canRequestSign)) {
-      throw new Error('Value sent is not valid');
-    }
 
+  /**
+   * This function ask the user to confirm they want to accept request from this website,
+   * this function is automatically called when using other functions.
+   */
+  async enableConnection(): Promise<void> {
     const dispatchEventParams: IConnectRequestPayload = {
       origin: window.origin,
       host: window.location.host,
-      permissions,
+      permissions: { canRequestPublicKey: true, canRequestSign: true },
     };
 
-    // tslint:disable-next-line:max-line-length
     const response = await this.sendEventToContentScript<
       IConnectRequestPayload,
       IRuntimeConnectResponse | IRuntimeErrorResponse
-    >(EventTypes.XBULL_CONNECT, dispatchEventParams);
+    >(EventType.XBULL_CONNECT, dispatchEventParams, crypto.randomUUID());
     const { detail } = response.data;
 
     if (!detail || detail.error) {
-      throw new Error(detail?.errorMessage || 'Unexpected error');
+      throw {
+        code: detail?.code || -1,
+        message: detail?.errorMessage || 'Unexpected error',
+      };
     }
 
     this.isConnected = true;
-
-    return detail.payload;
   }
 
-  async getPublicKey(): Promise<string> {
+  /**
+   * https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md#signtransaction
+   */
+  async getAddress(): Promise<SdkResponse<{ address: string }>> {
+    try {
+      await this.enableConnection();
+    } catch (e: any) {
+      return {
+        error: {
+          code: e?.code || -1,
+          message: e?.message || 'Unexpected error',
+        }
+      };
+    }
+
     const dispatchEventParams: IGetPublicKeyRequestPayload = {
       origin: window.origin,
       host: window.location.host,
@@ -129,37 +91,124 @@ export class xBullSDK {
     const response = await this.sendEventToContentScript<
       IGetPublicKeyRequestPayload,
       IRuntimeGetPublicKeyResponse | IRuntimeErrorResponse
-    >(EventTypes.XBULL_GET_PUBLIC_KEY, dispatchEventParams);
+    >(EventType.XBULL_GET_PUBLIC_KEY, dispatchEventParams, crypto.randomUUID());
 
     const { detail } = response.data;
 
     if (!detail || detail.error) {
-      throw new Error(detail?.errorMessage || 'Unexpected error');
+      return {
+        error: {
+          code: detail?.code || -1,
+          message: detail?.errorMessage || 'Unexpected error',
+        }
+      };
     }
 
-    return detail.payload;
+    return { address: detail.payload };
   }
 
-  async signXDR(xdr: string, options: { network?: string; publicKey?: string }): Promise<string> {
+  /**
+   * https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md#signtransaction
+   */
+  async signTransaction(params: {
+    xdr: string,
+    opts?: {
+      networkPassphrase?: string,
+      address?: string;
+      submit?: boolean;
+      submitUrl?: string;
+    };
+  }): Promise<SdkResponse<{ signedTxXdr: string; signerAddress: string; }>> {
+    if (params.opts?.submit || params.opts?.submitUrl) {
+      return {
+        error: {
+          code: -1,
+          message: 'Parameters `submit` and `submitUrl` are not supported',
+        },
+      };
+    }
+
+    try {
+      await this.enableConnection();
+    } catch (e: any) {
+      return {
+        error: {
+          code: e?.code || -1,
+          message: e?.message || 'Unexpected error',
+        }
+      };
+    }
+
     const dispatchEventParams: ISignXDRRequestPayload = {
       origin: window.origin,
       host: window.location.host,
-      network: options?.network,
-      publicKey: options?.publicKey,
-      xdr,
+      network: params.opts?.networkPassphrase,
+      publicKey: params.opts?.address,
+      xdr: params.xdr,
+      xdrType: 'Transaction',
     };
 
     const response = await this.sendEventToContentScript<
       ISignXDRRequestPayload,
       IRuntimeSignXDRResponse | IRuntimeErrorResponse
-    >(EventTypes.XBULL_SIGN_XDR, dispatchEventParams);
+    >(EventType.XBULL_SIGN_XDR, dispatchEventParams, crypto.randomUUID());
 
     const { detail } = response.data;
 
     if (!detail || detail.error) {
-      throw new Error(detail?.errorMessage || 'Unexpected error');
+      return {
+        error: {
+          code: detail?.code || -1,
+          message: detail?.errorMessage || 'Unexpected error',
+        }
+      };
     }
 
-    return detail.payload;
+    return {
+      signedTxXdr: detail.payload.signedXdr,
+      signerAddress: detail.payload.signerAddress,
+    };
+  }
+
+  /**
+   * This method returns the information of the currently selected network
+   */
+  async getNetwork(): Promise<SdkResponse<{ network: string; networkPassphrase: string; }>> {
+    try {
+      await this.enableConnection();
+    } catch (e: any) {
+      return {
+        error: {
+          code: e?.code || -1,
+          message: e?.message || 'Unexpected error',
+        }
+      };
+    }
+
+    const dispatchEventParams: IGetNetworkRequestPayload = {
+      origin: window.origin,
+      host: window.location.host,
+    };
+
+    const response = await this.sendEventToContentScript<
+      IGetNetworkRequestPayload,
+      IRuntimeGetNetworkResponse | IRuntimeErrorResponse
+    >(EventType.XBULL_GET_NETWORK, dispatchEventParams, crypto.randomUUID());
+
+    const { detail } = response.data;
+
+    if (!detail || detail.error) {
+      return {
+        error: {
+          code: detail?.code || -1,
+          message: detail?.errorMessage || 'Unexpected error',
+        }
+      };
+    }
+
+    return {
+      network: detail.payload.network,
+      networkPassphrase: detail.payload.networkPassphrase,
+    };
   }
 }

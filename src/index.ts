@@ -4,9 +4,17 @@ import {
   EventType,
   IConnectParams,
   IConnectRequestData,
-  IConnectResponseData, IConnectResult,
-  InitialResponseListenerData, IRejectResponse, IRejectResult,
-  ISDKConstructor, ISignParams, ISignRequestData, ISignResponseData, ISignResult
+  IConnectResponseData,
+  IConnectResult,
+  InitialResponseListenerData,
+  IRejectResponse,
+  IRejectResult,
+  ISDKConstructor,
+  ISignParams, ISignRequestData,
+  ISignResponseData,
+  ISignResult,
+  isResponseError,
+  SdkResponse,
 } from './interfaces';
 import {
   firstValueFrom,
@@ -213,10 +221,13 @@ export class xBullWalletConnect {
   async connect(params: IConnectParams = { canRequestPublicKey: true, canRequestSign: true }): Promise<string> {
     const extensionSdk: xBullSDK = !!(window as any)?.webkit?.messageHandlers?.cordova_iab ? new xBullSDK() : (window as any).xBullSDK;
     if (!!extensionSdk && this.preferredTarget === 'extension') {
+      const response: SdkResponse<{ address: string }> = await extensionSdk.getAddress();
 
-      await extensionSdk.connect(params);
-      return extensionSdk.getPublicKey();
-
+      if (isResponseError(response)) {
+        throw response.error;
+      } else {
+        return response.address;
+      }
     } else {
 
       await this.openWallet();
@@ -258,11 +269,22 @@ export class xBullWalletConnect {
     }
   }
 
-  async sign(params: ISignParams) {
+  async sign(params: ISignParams): Promise<string> {
     const extensionSdk: xBullSDK = !!(window as any)?.webkit?.messageHandlers?.cordova_iab ? new xBullSDK() : (window as any).xBullSDK;
     if (!!extensionSdk && this.preferredTarget === 'extension') {
-      const { xdr, ...rest } = params;
-      return extensionSdk.signXDR(xdr, rest);
+      const response = await extensionSdk.signTransaction({
+        xdr: params.xdr,
+        opts: {
+          networkPassphrase: params.network,
+          address: params.publicKey,
+        }
+      });
+
+      if (isResponseError(response)) {
+        throw response.error;
+      } else {
+        return response.signedTxXdr;
+      }
     } else {
       await this.openWallet();
 
