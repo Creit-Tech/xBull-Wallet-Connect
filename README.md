@@ -5,7 +5,7 @@ This library allows you to connect your site with xBull Wallet in a quick and ea
 ## Installation
 
 ```shell
-npm i --save @creit-tech/xbull-wallet-connect
+npm i --save @creit.tech/xbull-wallet-connect
 ```
 
 Install the latest version available in our repo, we use Github instead of NPM because this way you can check the code before intalling it which in our view is safer.
