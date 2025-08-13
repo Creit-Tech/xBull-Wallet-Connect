@@ -3,12 +3,13 @@ export enum EventType {
   XBULL_GET_PUBLIC_KEY = 'XBULL_GET_PUBLIC_KEY',
   XBULL_SIGN_XDR = 'XBULL_SIGN_XDR',
   XBULL_GET_NETWORK = 'XBULL_GET_NETWORK',
-
+  XBULL_SIGN_MESSAGE = 'XBULL_SIGN_MESSAGE',
 
   XBULL_INITIAL_RESPONSE = 'XBULL_INITIAL_RESPONSE',
   XBULL_CONNECT_RESPONSE = 'XBULL_CONNECT_RESPONSE',
   XBULL_SIGN = 'XBULL_SIGN',
   XBULL_SIGN_RESPONSE = 'XBULL_SIGN_RESPONSE',
+  XBULL_SIGN_MESSAGE_RESPONSE = 'XBULL_SIGN_MESSAGE_RESPONSE',
 }
 
 export interface ISDKConstructor {
@@ -37,6 +38,14 @@ export interface ISignResult {
   xdr: string;
 }
 
+export interface ISignMessageResult {
+  success: true;
+  message: string;
+  fullMessage: string; // This is the message with the SEP-0053 text
+  signedMessage: string;
+  signerAddress: string;
+}
+
 export interface IRejectResult {
   success: false;
   message?: string;
@@ -51,6 +60,12 @@ export interface IConnectRequestData {
 
 export interface ISignRequestData {
   type: EventType.XBULL_SIGN;
+  message: string; // IConnectParams JSON version
+  oneTimeCode: string;
+}
+
+export interface ISignMessageRequestData {
+  type: EventType.XBULL_SIGN_MESSAGE;
   message: string; // IConnectParams JSON version
   oneTimeCode: string;
 }
@@ -75,6 +90,11 @@ export interface IConnectResponseData extends Required<BaseResponse> {
 
 export interface ISignResponseData extends Required<BaseResponse> {
   type: EventType.XBULL_SIGN_RESPONSE;
+  success: true;
+}
+
+export interface ISignMessageResponseData extends Required<BaseResponse> {
+  type: EventType.XBULL_SIGN_MESSAGE_RESPONSE;
   success: true;
 }
 
@@ -126,6 +146,14 @@ export interface ISignXDRRequestPayload {
   publicKey?: string;
   network?: string;
 }
+
+export interface ISignMessageRequestPayload {
+  origin: string;
+  host: string;
+  message: string;
+  publicKey?: string;
+  network?: string;
+}
 // ----- SDK and Content script types END
 
 // ----- Background and Content script types
@@ -147,6 +175,14 @@ export interface IRuntimeSignXDRResponse {
   };
 }
 
+export interface IRuntimeSignMessageResponse {
+  error: false;
+  payload: {
+    signedMessage: string;
+    signerAddress: string;
+  };
+}
+
 export interface IRuntimeGetNetworkResponse {
   error: false;
   payload: {
@@ -164,6 +200,7 @@ export interface IRuntimeErrorResponse {
 export type RuntimeResponse = IRuntimeConnectResponse
   | IRuntimeGetPublicKeyResponse
   | IRuntimeSignXDRResponse
+  | IRuntimeSignMessageResponse
   | IRuntimeErrorResponse
   | IRuntimeGetNetworkResponse;
 // ----- Background and Content script types END
