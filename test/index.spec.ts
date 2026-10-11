@@ -54,5 +54,23 @@ describe('SDK Specs', () => {
 
       expect(decryptedMessage).toBe(messageToSend);
     })
-  })
-})
+    });
+
+    test('should reject pending request when user closes wallet window', (done) => {
+      const connection = new xBullWalletConnect({ preferredTarget: 'external' });
+      const mockWindow = { closed: false, close: jest.fn(), postMessage: jest.fn() };
+      (global as any).window = (global as any).window || {};
+      (global as any).window.open = jest.fn().mockReturnValue(mockWindow);
+
+      connection.connect().catch((err: Error) => {
+        expect(err.message).toBe('User closed the wallet window without completing the request');
+        done();
+      });
+
+      // Simulate closing window before interaction
+      setTimeout(() => {
+        mockWindow.closed = true;
+      }, 600);
+    });
+  });
+});
