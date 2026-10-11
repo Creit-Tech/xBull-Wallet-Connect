@@ -422,6 +422,24 @@ export class xBullWalletConnect {
     }
   }
 
+  /**
+   * This method returns the information of the currently selected network
+   */
+  async getNetwork(): Promise<{ network: string; networkPassphrase: string }> {
+    const extensionSdk: xBullSDK = !!(window as any)?.webkit?.messageHandlers?.cordova_iab ? new xBullSDK() : (window as any).xBullSDK;
+    if (!!extensionSdk && this.preferredTarget === 'extension') {
+      const response = await extensionSdk.getNetwork();
+
+      if (isResponseError(response)) {
+        throw response.error;
+      } else {
+        return response;
+      }
+    } else {
+      throw new Error('getNetwork is currently only supported when using the extension target');
+    }
+  }
+
   closeConnections() {
     this.closeObservables$.next();
     this.closeCurrentPromises$.next();

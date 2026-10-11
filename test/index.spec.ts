@@ -54,5 +54,25 @@ describe('SDK Specs', () => {
 
       expect(decryptedMessage).toBe(messageToSend);
     })
-  })
-})
+    });
+
+    test('should throw error when getNetwork is called without extension SDK', async () => {
+      const connection = new xBullWalletConnect();
+      await expect(connection.getNetwork()).rejects.toThrow('getNetwork is currently only supported when using the extension target');
+    });
+
+    test('should return network info when extension SDK provides it', async () => {
+      const mockNetwork = { network: 'TESTNET', networkPassphrase: 'Test SDF Network ; September 2015' };
+      (global as any).window = (global as any).window || {};
+      (global as any).window.xBullSDK = {
+        getNetwork: jest.fn().mockResolvedValue(mockNetwork),
+      };
+
+      const connection = new xBullWalletConnect({ preferredTarget: 'extension' });
+      const result = await connection.getNetwork();
+      expect(result).toEqual(mockNetwork);
+
+      delete (global as any).window.xBullSDK;
+    });
+  });
+});
