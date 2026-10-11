@@ -125,11 +125,16 @@ export class xBullWalletConnect {
       });
   }
 
-  closeCurrentPromisesSubscription: Subscription = timer(1000, 1000)
+  closeCurrentPromisesSubscription: Subscription = timer(500, 500)
     .pipe(takeUntil(this.closeObservables$))
     .subscribe(() => {
       if (this.target?.closed) {
+        const errorPayload = { success: false as const, message: 'User closed the wallet window without completing the request' };
+        this.connectResult$.next(errorPayload);
+        this.signResult$.next(errorPayload);
+        this.signMessageResult$.next(errorPayload);
         this.closeCurrentPromises$.next();
+        this.target = null;
       }
     })
 
