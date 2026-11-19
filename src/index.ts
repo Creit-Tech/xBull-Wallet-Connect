@@ -125,6 +125,23 @@ export class xBullWalletConnect {
       });
   }
 
+  /**
+   * The `message` listener is global, so every live instance on the page receives every
+   * `XBULL_*` frame. A frame sealed for another session cannot be opened with this
+   * instance's keypair: that is not an error to report, it is simply not our frame.
+   */
+  private tryDecryptFromReceiver(params: {
+    payload: string;
+    oneTimeCode: string;
+    senderPublicKey: string;
+  }): string | undefined {
+    try {
+      return this.decryptFromReceiver(params);
+    } catch {
+      return undefined;
+    }
+  }
+
   closeCurrentPromisesSubscription: Subscription = timer(1000, 1000)
     .pipe(takeUntil(this.closeObservables$))
     .subscribe(() => {
@@ -136,11 +153,15 @@ export class xBullWalletConnect {
   onInititalResponseSubscription: Subscription = this.initialResponse$
     .pipe(takeUntil(this.closeObservables$))
     .subscribe((ev: MessageEvent<InitialResponseListenerData>) => {
-      const decryptedMessage = this.decryptFromReceiver({
+      const decryptedMessage = this.tryDecryptFromReceiver({
         oneTimeCode: ev.data.oneTimeCode,
         payload: ev.data.message,
         senderPublicKey: ev.data.publicKey
       });
+
+      if (decryptedMessage === undefined) {
+        return;
+      }
 
       const data = JSON.parse(decryptedMessage);
 
@@ -163,11 +184,15 @@ export class xBullWalletConnect {
         return;
       }
 
-      const decryptedMessage = this.decryptFromReceiver({
+      const decryptedMessage = this.tryDecryptFromReceiver({
         oneTimeCode: ev.data.oneTimeCode,
         payload: ev.data.message,
         senderPublicKey: this.targetPublicKey,
       });
+
+      if (decryptedMessage === undefined) {
+        return;
+      }
 
       const data: { publicKey: string } = JSON.parse(decryptedMessage);
 
@@ -187,11 +212,15 @@ export class xBullWalletConnect {
         return;
       }
 
-      const decryptedMessage = this.decryptFromReceiver({
+      const decryptedMessage = this.tryDecryptFromReceiver({
         oneTimeCode: ev.data.oneTimeCode,
         payload: ev.data.message,
         senderPublicKey: this.targetPublicKey,
       });
+
+      if (decryptedMessage === undefined) {
+        return;
+      }
 
       const data: { xdr: string } = JSON.parse(decryptedMessage);
 
@@ -212,11 +241,15 @@ export class xBullWalletConnect {
         return;
       }
 
-      const decryptedMessage = this.decryptFromReceiver({
+      const decryptedMessage = this.tryDecryptFromReceiver({
         oneTimeCode: ev.data.oneTimeCode,
         payload: ev.data.message,
         senderPublicKey: this.targetPublicKey,
       });
+
+      if (decryptedMessage === undefined) {
+        return;
+      }
 
       const data: Omit<ISignMessageResult, 'success'> = JSON.parse(decryptedMessage);
 
